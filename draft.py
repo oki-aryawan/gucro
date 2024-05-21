@@ -1,10 +1,12 @@
 import sys
+import os
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
 from PyQt5.uic import loadUi
 import cv2
 import numpy as np
+import pandas as pd
 
 
 class CoFruit(QMainWindow):
@@ -15,6 +17,7 @@ class CoFruit(QMainWindow):
         self.open_img.clicked.connect(self.OpenImg)
         self.analys.clicked.connect(self.Analys)
         self.clear.clicked.connect(self.Reset)
+        self.save.clicked.connect(self.Save)
 
         self.rgb_img = None  # Initialize as None
 
@@ -39,8 +42,8 @@ class CoFruit(QMainWindow):
         self.vmax.valueChanged.connect(self.updateThresholdedImage)
 
     def OpenImg(self):
-        filename, _ = QFileDialog.getOpenFileName(self, "Open Image", "",
-                                                  "Image Files (*.png *.jpg *.jpeg *.bmp *.gif)")
+        filename, _ = QFileDialog.getOpenFileName(self, "Open Image", "","Image Files (*.png *.jpg *.jpeg *.bmp *.gif)")
+        self.filename = filename
         if filename:
             RawImg = cv2.imread(filename)
             if RawImg is not None:
@@ -100,20 +103,9 @@ class CoFruit(QMainWindow):
             # Get the bounding box of the largest contour
             x, y, width, height = cv2.boundingRect(largest_contour)
 
-            # Optionally, draw the bounding box and centroid on the masked RGB image for visualization
-            #cv2.rectangle(masked_rgb, (x, y), (x + width, y + height), (0, 255, 0),2)  # Draw a green rectangle around the contour
-            #cv2.circle(masked_rgb, (cX, cY), 5, (255, 0, 0), -1)  # Draw a red circle at the centroid
-            cv2.line(masked_rgb, (cX, y), (cX, y + height), (255, 0, 0), 2)  # Vertical line
-            cv2.line(masked_rgb, (x, cY), (x + width, cY), (255, 0, 0), 2)
-
-        # Output the horizontal and vertical diameters
-        global horizontal_diameter, vertical_diameter
-        horizontal_diameter = width
-        vertical_diameter = height
-
-        print(f"Centroid: ({cX}, {cY})")
-        print(f"Horizontal Diameter: {horizontal_diameter}")
-        print(f"Vertical Diameter: {vertical_diameter}")
+        # Output the mayor and minor diameters
+        self.Mayor = height
+        self.Minor = width
 
         # Convert mask to QImage for display
         h, w = mask.shape
@@ -123,6 +115,7 @@ class CoFruit(QMainWindow):
 
         # Save masked RGB image and number of non-zero pixels for analysis
         self.masked_rgb = masked_rgb
+        self.masked_hsv = mask
         self.num_pixels = cv2.countNonZero(mask)
         self.GetRGB(masked_rgb)
 
@@ -177,27 +170,63 @@ class CoFruit(QMainWindow):
             return
 
         self.Red, self.Green, self.Blue = self.GetRGB(self.masked_rgb)
-        H, S, I = self.CalculateHSI(self.Red, self.Green, self.Blue)
+        self.H, self.S, self.I = self.CalculateHSI(self.Red, self.Green, self.Blue)
 
         # Convert the masked RGB image to QImage for display
         h, w, ch = self.masked_rgb.shape
         #print(f"h: {h}, w: {w}, ch: {ch}")
         bytes_per_line = ch * w
         qImg_RGB = QImage(self.masked_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        pixmap_RGB = QPixmap.fromImage(qImg_RGB)
-
-        global horizontal_diameter, vertical_diameter
-
-        self.raw_img.setPixmap(pixmap_RGB)
+        self.pixmap_RGB = QPixmap.fromImage(qImg_RGB)
+        self.raw_img.setPixmap(self.pixmap_RGB)
         self.pixel.setText(str(self.num_pixels))
         self.pixel_2.setText(str(self.Red))
         self.pixel_3.setText(str(self.Green))
         self.pixel_4.setText(str(self.Blue))
-        self.hue.setText(f"{H:.2f}\u00b0")
-        self.sat.setText(f"{100*S:.2f}%")
-        self.inten.setText(f"{100*I:.2f}%")
-        self.mayor.setText(str(vertical_diameter))
-        self.minor.setText(str(horizontal_diameter))
+        self.hue.setText(f"{self.H:.2f}\u00b0")
+        self.sat.setText(f"{100*self.S:.2f}%")
+        self.inten.setText(f"{100*self.I:.2f}%")
+        self.mayor.setText(str(self.Mayor))
+        self.minor.setText(str(self.Minor))
+
+
+    def Save(self):
+        if self.masked_rgb is None or self.masked_rgb is None:
+            print("No masked image available.")
+            return
+        save_dir = os.path.join(os.getcwd(), "result")
+        filename = os.path.basename(self.filename)
+        filename = os.path.splitext(filename)[0]
+        masked_rgb_save_path = os.path.join(save_dir, f"rgb_{filename}.png")
+        cv2.imwrite(masked_rgb_save_path, cv2.cvtColor(self.masked_rgb, cv2.COLOR_RGB2BGR))
+
+        masked_hsv_save_path = os.path.join(save_dir, f"hsv_{filename}.png")
+        cv2.imwrite(masked_hsv_save_path, cv2.cvtColor(self.masked_hsv, cv2.COLOR_RGB2BGR))
+        print("Successfully saved masked image.")
+
+        data = {
+            "Filename": [filename],
+            "Number of Pixels": [self.num_pixels],
+            "Red": [self.Red],
+            "Green": [self.Green],
+            "Blue": [self.Blue],
+            "Hue": [self.H],
+            "Saturation": [self.S],
+            "Intensity": [self.I],
+            "Major Diameter": [self.Mayor],
+            "Minor Diameter": [self.Minor]
+        }
+
+        df = pd.DataFrame(data)
+        csv_save_path = os.path.join(save_dir, "result.csv")
+
+        # Append the data to the CSV file
+        if os.path.exists(csv_save_path):
+            df.to_csv(csv_save_path, mode='a', header=False, index=False)
+        else:
+            df.to_csv(csv_save_path, mode='w', header=True, index=False)
+
+        print("Successfully saved data to CSV file.")
 
     def Reset(self):
         self.result_img.clear()
@@ -210,6 +239,9 @@ class CoFruit(QMainWindow):
         self.hue.setText("null")
         self.sat.setText("null")
         self.inten.setText("null")
+        self.mayor.setText("null")
+        self.minor.setText("null")
+        print("Completed Reset")
 
 
 if __name__ == "__main__":

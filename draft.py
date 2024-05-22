@@ -182,6 +182,7 @@ class CoFruit(QMainWindow):
         self.Weight = (self.num_pixels * 0.0028) - 14.459
         self.DMayor = (0.0186*self.Mayor) + 1.3044
         self.DMinor = (0.0128*self.Minor) + 3.4061
+        self.Brix = 0.0565*self.Green
 
 
 
@@ -198,6 +199,7 @@ class CoFruit(QMainWindow):
         self.minor.setText(str(round(self.DMinor,2)))
         self.weight.setText(str(round(self.Weight,2)))
         self.zarea.setText(f"{self.Area:.2f}")
+        self.zbrix.setText(f"{round(self.Brix,2)}")
 
 
 
@@ -254,6 +256,7 @@ class CoFruit(QMainWindow):
         self.minor.setText("null")
         self.weight.setText("null")
         self.zarea.setText("null")
+        self.zbrix.setText("null")
         print("Completed Reset")
 
 

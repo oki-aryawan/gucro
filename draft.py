@@ -177,6 +177,14 @@ class CoFruit(QMainWindow):
         #print(f"h: {h}, w: {w}, ch: {ch}")
         bytes_per_line = ch * w
         qImg_RGB = QImage(self.masked_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
+        self.Area = (self.num_pixels * 0.0013) + 65.994
+        self.Weight = (self.num_pixels * 0.0028) - 14.459
+        self.DMayor = (0.0186*self.Mayor) + 1.3044
+        self.DMinor = (0.0128*self.Minor) + 3.4061
+
+
+
         self.pixmap_RGB = QPixmap.fromImage(qImg_RGB)
         self.raw_img.setPixmap(self.pixmap_RGB)
         self.pixel.setText(str(self.num_pixels))
@@ -186,8 +194,11 @@ class CoFruit(QMainWindow):
         self.hue.setText(f"{self.H:.2f}\u00b0")
         self.sat.setText(f"{100*self.S:.2f}%")
         self.inten.setText(f"{100*self.I:.2f}%")
-        self.mayor.setText(str(self.Mayor))
-        self.minor.setText(str(self.Minor))
+        self.mayor.setText(str(round(self.DMayor,2)))
+        self.minor.setText(str(round(self.DMinor,2)))
+        self.weight.setText(str(round(self.Weight,2)))
+        self.zarea.setText(f"{self.Area:.2f}")
+
 
 
     def Save(self):
@@ -241,6 +252,8 @@ class CoFruit(QMainWindow):
         self.inten.setText("null")
         self.mayor.setText("null")
         self.minor.setText("null")
+        self.weight.setText("null")
+        self.zarea.setText("null")
         print("Completed Reset")
 
 
